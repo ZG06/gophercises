@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -18,14 +17,16 @@ func main() {
 	// parse command-line flags
 	flag.Parse()
 
-	data, err := readCSVFile(*csvFlag)
+	f, err := readCSVFile(*csvFlag)
 	// check for errors
 	if err != nil {
 		CSVError(err, "file_read")
 		os.Exit(1)
 	}
 
-	reader, err := parseCSV(data)
+	defer f.Close()
+
+	reader, err := parseCSV(f)
 	// check for errors
 	if err != nil {
 		CSVError(err, "parse")
@@ -43,29 +44,21 @@ func main() {
 }
 
 /* The function opens a csv file, reads all the data in bytes and returns it*/
-func readCSVFile(filename string) ([]byte, error) {
+func readCSVFile(filename string) (*os.File, error) {
 	// open the csv file
 	f, err := os.Open(filename)
 	// check for errors
 	if err != nil {
-		return CSVError(err, "default")
+		CSVError(err, "default")
+		os.Exit(1)
 	}
 
-	// close the file in the end of the function
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
-	// check for errors
-	if err != nil {
-		return CSVError(err, "default")
-	}
-
-	return data, nil
+	return f, nil
 }
 
 // The function converts bytes into a readable stream
-func parseCSV(data []byte) (*csv.Reader, error) {
-	reader := csv.NewReader(bytes.NewReader(data))
+func parseCSV(data io.Reader) (*csv.Reader, error) {
+	reader := csv.NewReader(data)
 	return reader, nil
 }
 
@@ -99,7 +92,7 @@ func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
 	}
 }
 
-// A function returns the errors related to csv files
+// The function returns the errors related to csv files
 func CSVError(err error, err_type string) ([]byte, error) {
 	switch err_type {
 	case "file_read":
