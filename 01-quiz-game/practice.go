@@ -51,8 +51,10 @@ func main() {
 		processChan <- true
 	}()
 
-	problem_num := 1
+	problem_num := 0
 	correct_answers := 0
+
+	timer := time.NewTimer(time.Duration(*limitFlag) * time.Second)
 
 	// Wait until one of the conditions is met
 	for {
@@ -69,7 +71,7 @@ func main() {
 			fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
 			return // exit main when all questions are answered
 
-		case <-time.After(time.Duration(*limitFlag) * time.Second):
+		case <-timer.C:
 			fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
 			return // exit main when timer expires
 		}
