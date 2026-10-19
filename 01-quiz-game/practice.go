@@ -35,14 +35,9 @@ func main() {
 		CSVError(err, "parse")
 		os.Exit(1)
 	}
-
-	// problem number
-	problem_num := 1
-	// correct answer counter
-	correct_answers := 0
-
 	// channel for processCSV function state
-	processState := make(chan bool, 1)
+	processChan := make(chan bool, 1)
+	answerChan := make(chan bool, 1)
 
 	// wait for the user to press Enter to start
 	fmt.Print("Press 'Enter' to start...")
@@ -51,23 +46,34 @@ func main() {
 	// goroutine for giving problems to the user in the background
 	go func() {
 		/* if the user answers all the question before the time runs out,
-		'true' will be send to the processState channel*/
-		processCSV(reader, &problem_num, &correct_answers)
-		processState <- true
+		'true' will be send to the processChan channel*/
+		processCSV(reader, answerChan)
+		processChan <- true
 	}()
 
-	// Wait until one of the conditions is met
-	select {
-	// finish monitoring is processState changes to 'true'
-	case <-processState:
-		break
-	// finish monitoring if the user runs out of time
-	case <-time.After(time.Duration(*limitFlag) * time.Second):
-		break
-	}
+	problem_num := 0
+	correct_answers := 0
 
-	// write the user's score at the end of the program
-	fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
+	// Wait until one of the conditions is met
+	for {
+		select {
+		case isCorrect := <-answerChan:
+			// increate the problem_num counter when answerChan receives data
+			problem_num++
+			// is the answer was correct, increase the correct_answers counter
+			if isCorrect {
+				correct_answers++
+			}
+
+		case <-processChan:
+			fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
+			return // exit main when all questions are answered
+
+		case <-time.After(time.Duration(*limitFlag) * time.Second):
+			fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
+			return // exit main when timer expires
+		}
+	}
 }
 
 /* The function opens a csv file, reads all the data in bytes and returns it*/
@@ -90,7 +96,9 @@ func parseCSV(data io.Reader) (*csv.Reader, error) {
 }
 
 // The function processes the data from a csv file and evaluating the user's answers
-func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
+func processCSV(reader *csv.Reader, answerChan chan<- bool) {
+	problemNum := 1
+
 	// read every line in the given csv file
 	for {
 		record, err := reader.Read()
@@ -104,7 +112,7 @@ func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
 		}
 
 		// print a problem number and a question
-		fmt.Printf("Problem №%d: %s = ", *problem_num, record[0])
+		fmt.Printf("Problem №%d: %s = ", problemNum, record[0])
 
 		var user_input int
 		// get user input
@@ -113,10 +121,12 @@ func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
 		// compare the user input to the answer to the problem stored in the csv file
 		// if the answer is correct, increase the correct answer count
 		if strconv.Itoa(user_input) == record[1] {
-			*correct_answers++
+			answerChan <- true
+		} else {
+			answerChan <- false
 		}
 
-		*problem_num++
+		problemNum++
 	}
 }
 
