@@ -1,6 +1,7 @@
 package urlshort
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,12 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 			fallback.ServeHTTP(w, r)
 		}
 	}
+}
+
+// struct with path and url from the yaml data
+type Data struct {
+	Path string `yaml:"path" json:"path"`
+	Url  string `yaml:"url" json:"url"`
 }
 
 // YAMLHandler will parse the provided YAML and then return
@@ -52,26 +59,42 @@ func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	return MapHandler(pathMap, fallback), nil
 }
 
-// struct with path and url from the yaml data
-type Data struct {
-	Path string `yaml:"path"`
-	Url  string `yaml:"url"`
-}
-
 // The function unmarshals the yaml data in bytes
 // and stores it into the Data slice.
-func parseYAML(yml []byte) (data []Data, err error) {
+func parseYAML(yml []byte) ([]Data, error) {
 	d := []Data{}
 	if err := yaml.Unmarshal(yml, &d); err != nil {
 		return nil, err
 	}
 
-	return d, err
+	return d, nil
 }
 
-// The function build a map from the parsed yaml data.
-func buildMap(parsedYaml []Data) (pathMap map[string]string) {
-	pathMap = make(map[string]string)
+func JSONHandler(js []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	parsedJSON, err := parseJSON(js)
+	if err != nil {
+		return nil, err
+	}
+
+	pathMap := buildMap(parsedJSON)
+
+	return MapHandler(pathMap, fallback), nil
+}
+
+// The function unmarshals the json data in bytes
+// and stores it into the Data slice.
+func parseJSON(js []byte) ([]Data, error) {
+	d := []Data{}
+	if err := json.Unmarshal(js, &d); err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+// The function build a map from the parsed data.
+func buildMap(parsedYaml []Data) map[string]string {
+	pathMap := make(map[string]string)
 
 	for _, v := range parsedYaml {
 		pathMap[v.Path] = v.Url
