@@ -1,0 +1,20 @@
+- path: /urlshort
+  url: https://github.com/gophercises/urlshort
+  
+- path: /urlshort-final
+  url: https://github.com/gophercises/urlshort/tree/solution
+
+- path: /go-docs
+  url: https://pkg.go.dev/std
+
+- path: /docker-docs
+  url: https://docs.docker.com/
+
+- path: /k8s-docs
+  url: https://kubernetes.io/docs/home/
+
+- path: /gophercises
+  url: https://gophercises.com/
+
+- path: /github
+  url: https://github.com/
