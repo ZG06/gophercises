@@ -1,18 +1,21 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"time"
 )
 
 func main() {
-	// set a -csv flag so that a user can specify their own file
+	// set the -csv flag so that a user can specify their own file
 	csvFlag := flag.String("csv", "problems.csv", "a csv file in the format of 'question,answer' (default \"problems.csv\")")
-	// limitFlag := flag.Int("limit", 30, "the time limit for the quiz in seconds (default 30)")
+	// add a -limit flag to set the timer duration
+	limitFlag := flag.Int("limit", 30, "the time limit for the quiz in seconds (default 30)")
 
 	// parse command-line flags
 	flag.Parse()
@@ -38,9 +41,33 @@ func main() {
 	// correct answer counter
 	correct_answers := 0
 
-	processCSV(reader, &problem_num, &correct_answers)
+	// channel for processCSV function state
+	processState := make(chan bool, 1)
 
-	fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num-1)
+	// wait for the user to press Enter to start
+	fmt.Print("Press 'Enter' to start...")
+	bufio.NewReader(os.Stdin).ReadBytes('\n')
+
+	// goroutine for giving problems to the user in the background
+	go func() {
+		/* if the user answers all the question before the time runs out,
+		'true' will be send to the processState channel*/
+		processCSV(reader, &problem_num, &correct_answers)
+		processState <- true
+	}()
+
+	// Wait until one of the conditions is met
+	select {
+	// finish monitoring is processState changes to 'true'
+	case <-processState:
+		break
+	// finish monitoring if the user runs out of time
+	case <-time.After(time.Duration(*limitFlag) * time.Second):
+		break
+	}
+
+	// write the user's score at the end of the program
+	fmt.Printf("\nYou scored %d out of %d\n", correct_answers, problem_num)
 }
 
 /* The function opens a csv file, reads all the data in bytes and returns it*/
@@ -78,7 +105,6 @@ func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
 
 		// print a problem number and a question
 		fmt.Printf("Problem №%d: %s = ", *problem_num, record[0])
-		*problem_num++
 
 		var user_input int
 		// get user input
@@ -89,6 +115,8 @@ func processCSV(reader *csv.Reader, problem_num, correct_answers *int) {
 		if strconv.Itoa(user_input) == record[1] {
 			*correct_answers++
 		}
+
+		*problem_num++
 	}
 }
 
