@@ -23,7 +23,7 @@ func main() {
 	f, err := readCSVFile(*csvFlag)
 	// check for errors
 	if err != nil {
-		CSVError(err, "file_read")
+		fmt.Println("Error reading file:", err)
 		os.Exit(1)
 	}
 
@@ -32,7 +32,7 @@ func main() {
 	reader, err := parseCSV(f)
 	// check for errors
 	if err != nil {
-		CSVError(err, "parse")
+		fmt.Println("Error creating CSV reader:", err)
 		os.Exit(1)
 	}
 	// channel for processCSV function state
@@ -51,7 +51,7 @@ func main() {
 		processChan <- true
 	}()
 
-	problem_num := 0
+	problem_num := 1
 	correct_answers := 0
 
 	// Wait until one of the conditions is met
@@ -82,8 +82,7 @@ func readCSVFile(filename string) (*os.File, error) {
 	f, err := os.Open(filename)
 	// check for errors
 	if err != nil {
-		CSVError(err, "default")
-		os.Exit(1)
+		return nil, err
 	}
 
 	return f, nil
@@ -107,7 +106,7 @@ func processCSV(reader *csv.Reader, answerChan chan<- bool) {
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			CSVError(err, "csv_read")
+			fmt.Println("Error reading CSV data:", err)
 			break
 		}
 
@@ -127,25 +126,5 @@ func processCSV(reader *csv.Reader, answerChan chan<- bool) {
 		}
 
 		problemNum++
-	}
-}
-
-// The function returns the errors related to csv files
-func CSVError(err error, err_type string) ([]byte, error) {
-	switch err_type {
-	case "file_read":
-		fmt.Println("Error reading file:", err)
-		return nil, err
-
-	case "parse":
-		fmt.Println("Error creating CSV reader:", err)
-		return nil, err
-
-	case "csv_read":
-		fmt.Println("Error reading CSV data:", err)
-		return nil, err
-
-	default:
-		return nil, err
 	}
 }
