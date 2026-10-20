@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"02-url-shortener/urlshort"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 func main() {
@@ -25,31 +27,69 @@ func main() {
 	}
 	mapHandler := urlshort.MapHandler(pathsToUrls, mux)
 
-	// Read data from the custom or default data file
-	data, err := readFile(*filePath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	// check file extention of the provided data file
 	ext := strings.ToLower(filepath.Ext(*filePath))
 	var finalHandler http.HandlerFunc
 
+	// Read data from the custom or default data file
+
 	// choose the right handler for the extention
 	switch ext {
 	case ".json":
+		// Read data from a custom json file
+		data, err := readFile(*filePath)
+		if err != nil {
+			fmt.Println("Error reading JSON file", err)
+			os.Exit(1)
+		}
 		finalHandler, err = urlshort.JSONHandler(data, mapHandler)
+
 	case ".yaml", ".yml":
+		// Read data from a custom yaml file
+		data, err := readFile(*filePath)
+		if err != nil {
+			fmt.Println("Error reading YAML file:", err)
+			os.Exit(1)
+		}
 		finalHandler, err = urlshort.YAMLHandler(data, mapHandler)
+
+	case ".db":
+		// open a .db file
+		db, err := bolt.Open(*filePath, 0600, nil)
+		if err != nil {
+			fmt.Println("Error reading BoltDB file", err)
+			os.Exit(1)
+		}
+
+		defer db.Close()
+
+		err = db.Update(func(tx *bolt.Tx) error {
+			// open or create a URLs bucket
+			b, err := tx.CreateBucketIfNotExists([]byte("URLs"))
+			if err != nil {
+				return err
+			}
+
+			// if the bucket is empty, add data from the pathsToUrls string
+			if b.Stats().KeyN == 0 {
+				for path, url := range pathsToUrls {
+					err = b.Put([]byte(path), []byte(url))
+
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			return nil
+		})
+
+		finalHandler = urlshort.DBHandler(db, mapHandler)
 	default:
-		fmt.Printf("Unsupported file extension: %s. Please use .yaml, .yml, or .json\n", ext)
+		fmt.Printf("Unsupported file extension: %s. Please use .yaml, .yml, .json, or .db\n", ext)
 		os.Exit(1)
 	}
 
-	if err != nil {
-		panic(err)
-	}
 	fmt.Println("Starting the server on :8080")
 	http.ListenAndServe(":8080", finalHandler)
 }

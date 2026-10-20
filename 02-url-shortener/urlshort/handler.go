@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	bolt "go.etcd.io/bbolt"
 	"gopkg.in/yaml.v3"
 )
 
@@ -92,11 +93,45 @@ func parseJSON(js []byte) ([]Data, error) {
 	return d, nil
 }
 
+func DBHandler(db *bolt.DB, fallback http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// path in the user's search bar
+		pathToByte := []byte(r.URL.Path)
+		var dest string = ""
+
+		// check content of URLs bucket
+		db.View(func(tx *bolt.Tx) error {
+			// If the bucket is empty, return nothing.
+			b := tx.Bucket([]byte("URLs"))
+			if b == nil {
+				return nil
+			}
+
+			// If the bucket isn't empty, get the url associated with the path
+			// and save it to the dest string.
+			val := b.Get(pathToByte)
+			if val != nil {
+				dest = string(val)
+			}
+
+			return nil
+		})
+
+		// If the destination url exists, redirect the user to it.
+		if dest != "" {
+			http.Redirect(w, r, dest, http.StatusFound)
+			// Otherwise, delegate to the fallback handler.
+		} else {
+			fallback.ServeHTTP(w, r)
+		}
+	}
+}
+
 // The function build a map from the parsed data.
-func buildMap(parsedYaml []Data) map[string]string {
+func buildMap(parsedData []Data) map[string]string {
 	pathMap := make(map[string]string)
 
-	for _, v := range parsedYaml {
+	for _, v := range parsedData {
 		pathMap[v.Path] = v.Url
 	}
 
